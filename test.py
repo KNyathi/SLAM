@@ -5,6 +5,7 @@ print(cv2.__version__)
 
 #create a numpy array with zeros to use as a blank image
 image = np.zeros((512, 512, 3), np.uint8)
+#image = cv.imread("image5.jpg")
 
 # draw a green line on the image
 cv2.line(image, (0,0), (511, 511), (0,255,0), 5)
