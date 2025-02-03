@@ -54,6 +54,12 @@ draw_linear_cutout(center_red, 70, white)  # Bottom right circle facing left
 #cv2.polylines(image,[pts],True,(0,255,255))
 
 
+# Choose a different font type, for example, cv2.FONT_HERSHEY_TRIPLEX
+font = cv2.FONT_HERSHEY_TRIPLEX
+
+# Put text on the image with increased thickness to make it bold
+cv2.putText(img, 'OpenCV', (2, 480), font, 4, (0, 0, 0), 5, cv2.LINE_AA)
+
 # Display the image
 cv2.imshow('OpenCV Logo', img)
 cv2.waitKey(0)
