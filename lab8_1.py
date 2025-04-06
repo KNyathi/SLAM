@@ -2,72 +2,79 @@ import numpy as np
 import cv2 as cv
 import glob
 
-# Termination criteria
+# Define grid size (number of circles)
+pattern_size = (6, 10)  
+flags = cv.CALIB_CB_SYMMETRIC_GRID  # Change to cv.CALIB_CB_ASYMMETRIC_GRID if using an asymmetric pattern
+
+# Termination criteria for subpixel refinement
 criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
-# Prepare object points for a circular grid
-# Assuming a grid of 7x6 circles
-grid_size = (10, 6) 
-objp = np.zeros((grid_size[0] * grid_size[1], 3), np.float32)
-objp[:, :2] = np.mgrid[0:grid_size[0], 0:grid_size[1]].T.reshape(-1, 2)
+# Prepare object points for the circular grid
+objp = np.zeros((np.prod(pattern_size), 3), np.float32)
+objp[:, :2] = np.mgrid[0:pattern_size[0], 0:pattern_size[1]].T.reshape(-1, 2)
 
-# Arrays to store object points and image points from all the images.
-objpoints = []  # 3d point in real world space
-imgpoints = []  # 2d points in image plane.
+# Arrays to store object points and image points
+objpoints = []  # 3D points
+imgpoints = []  # 2D points
 
-jpg_images = glob.glob('Circular/' + '*.jpg')
-png_images = glob.glob('Circular/' + '*.png')
 
-# Combine the lists of jpg and png images
-images = jpg_images + png_images
-
-print("Images found:", images)
+# Load images
+images = glob.glob('Circular/*.jpg')
 
 for fname in images:
     img = cv.imread(fname)
     gray = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
-    # Find the circular grid corners
-    ret, corners = cv.findCirclesGrid(gray, grid_size, flags=cv.CALIB_CB_ASYMMETRIC_GRID, blobDetector=cv.SimpleBlobDetector_create())
-    # If found, add object points, image points (after refining them)
-    print(f"Processing {fname}: Grid found = {ret}")
+
+    # Find the circle grid pattern
+    ret, centers = cv.findCirclesGrid(gray, pattern_size, flags=flags)
+
     if ret:
         objpoints.append(objp)
-        corners2 = cv.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
-        imgpoints.append(corners2)
-        # Draw and display the corners
-        cv.drawChessboardCorners(img, grid_size, corners2, ret)
-        cv.imshow('img', img)
-        cv.waitKey(500)
+        refined_centers = cv.cornerSubPix(gray, centers, (11, 11), (-1, -1), criteria)
+        imgpoints.append(refined_centers)
+
+        # Draw the detected circles
+        cv.drawChessboardCorners(img, pattern_size, refined_centers, ret)
+        cv.imshow('Detected Circles', img)
+        cv.waitKey(5000)
+
+print(f"Number of valid images used for calibration: {len(objpoints)}")
+if len(objpoints) == 0:
+    print("❌ No valid images detected. Check the pattern size, images, and lighting.")
 
 # Calibration
 ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
 
-# Undistortion
-img = cv.imread('Circular/im4.jpg')
+                                   
+# Save calibration results
+np.savez('calib_circles.npz', mtx=mtx, dist=dist, rvecs=rvecs, tvecs=tvecs)
+
+# Load an image for undistortion
+img = cv.imread('Board/left12.jpg')
 h, w = img.shape[:2]
 newcameramtx, roi = cv.getOptimalNewCameraMatrix(mtx, dist, (w, h), 1, (w, h))
 
-# Undistort
+# Undistort the image
 dst = cv.undistort(img, mtx, dist, None, newcameramtx)
-# Crop the image
 x, y, w, h = roi
 dst = dst[y:y+h, x:x+w]
-cv.imwrite('calibrecirc.png', dst)
+cv.imwrite('calib_circles_result.png', dst)
 
-# Undistort using remap
+# Alternative undistortion using remap
 mapx, mapy = cv.initUndistortRectifyMap(mtx, dist, None, newcameramtx, (w, h), 5)
 dst = cv.remap(img, mapx, mapy, cv.INTER_LINEAR)
-# Crop the image
-x, y, w, h = roi
 dst = dst[y:y+h, x:x+w]
-cv.imwrite('calibrecirc2.png', dst)
+cv.imwrite('calib_circles_result2.png', dst)
 
-# Calculate reprojection error
+
+# Calculate total error
 mean_error = 0
 for i in range(len(objpoints)):
+    
     imgpoints2, _ = cv.projectPoints(objpoints[i], rvecs[i], tvecs[i], mtx, dist)
     error = cv.norm(imgpoints[i], imgpoints2, cv.NORM_L2) / len(imgpoints2)
     mean_error += error
-print("Total error: {}".format(mean_error / len(objpoints)))
+
+print(f"Total error: {mean_error / len(objpoints)}")
 
 cv.destroyAllWindows()

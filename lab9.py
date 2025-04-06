@@ -52,6 +52,8 @@ for fname in glob.glob('Board/left*.jpg'):
         cv.imshow('img',img)
         k = cv.waitKey(0) & 0xFF
         if k == ord('s'):
+
+
             cv.imwrite(fname[:6]+'.png', img)
 
 cv.destroyAllWindows()
